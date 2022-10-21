@@ -61,3 +61,25 @@ func NewDBConnectionCfg() DBConnectionCfg {
 
 	return cfg
 }
+
+type OpenWeatherAPIConnectionCfg struct {
+	APIID string
+}
+
+func NewOpenWeatherAPIConnectionCfg() OpenWeatherAPIConnectionCfg {
+	cfg := OpenWeatherAPIConnectionCfg{}
+	cfg.APIID = os.Getenv("OPENWEATHERAPI_ID")
+
+	someIsEmpty := false
+
+	if cfg.APIID == "" {
+		log.Println("OPENWEATHERAPI_ID env variable is empty")
+		someIsEmpty = true
+	}
+
+	if someIsEmpty {
+		log.Fatalln("some desktop environments is empty")
+	}
+
+	return cfg
+}
