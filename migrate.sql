@@ -11,7 +11,7 @@ CREATE TABLE cities (
     PRIMARY KEY(id)
 );
 
-CREATE TABLE weather (
+CREATE TABLE forecast (
     id SERIAL NOT NULL,
     temp real,
     f_date DATE,
