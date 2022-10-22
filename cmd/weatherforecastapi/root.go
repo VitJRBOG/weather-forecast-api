@@ -47,7 +47,6 @@ func TestFetchingData(dbConn *sql.DB, openWeatherAPIConnectionCfg config.OpenWea
 // FIXME: удалить после описания сервера
 func TestSaveDataToDB(dbConn *sql.DB, city models.City, forecasts []openweather.Forecast) {
 	for _, forecast := range forecasts {
-
 		data, err := json.Marshal(forecast.FullInfo)
 		if err != nil {
 			panic(err)
@@ -60,7 +59,12 @@ func TestSaveDataToDB(dbConn *sql.DB, city models.City, forecasts []openweather.
 			CityID:      city.ID,
 		}
 
-		db.InsertIntoForecast(dbConn, f)
+		fs := db.SelectByCityAndDateFromForecast(dbConn, f.CityID, f.Date)
+		if len(fs) == 0 {
+			db.InsertIntoForecast(dbConn, f)
+		} else {
+			db.UpdateRawInForecast(dbConn, fs[0].ID, f)
+		}
 	}
 }
 
