@@ -1,11 +1,15 @@
 package weatherforecastapi
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 	"weather-forecast-api/internal/config"
 	"weather-forecast-api/internal/data/openweather"
 	"weather-forecast-api/internal/db"
+	"weather-forecast-api/internal/models"
 )
 
 func Execute() {
@@ -19,20 +23,45 @@ func Execute() {
 		dbConnectionCfg.DBName,
 		dbConnectionCfg.SSLMode)
 
-	db.NewConnection(dsn)
+	dbConn := db.NewConnection(dsn)
 
 	openWeatherAPIConnectionCfg := config.NewOpenWeatherAPIConnectionCfg()
 
-	TestFetchingData(openWeatherAPIConnectionCfg)
+	TestFetchingData(dbConn, openWeatherAPIConnectionCfg)
 
 	// ...
 }
 
-// FIXME: удалить после описания работы с БД
-func TestFetchingData(openWeatherAPIConnectionCfg config.OpenWeatherAPIConnectionCfg) {
-	lat, lon := 55.750446, 37.617494
+// FIXME: удалить после описания сервера
+func TestFetchingData(dbConn *sql.DB, openWeatherAPIConnectionCfg config.OpenWeatherAPIConnectionCfg) {
+	cities := db.SelectAllFromCities(dbConn)
 
-	fmt.Println(openweather.FetchForecast(openWeatherAPIConnectionCfg.APIID, lat, lon))
+	for _, city := range cities {
+		forecasts := openweather.FetchForecast(openWeatherAPIConnectionCfg.APIID,
+			city.Latitude, city.Longitude)
+
+		TestSaveDataToDB(dbConn, city, forecasts)
+	}
+}
+
+// FIXME: удалить после описания сервера
+func TestSaveDataToDB(dbConn *sql.DB, city models.City, forecasts []openweather.Forecast) {
+	for _, forecast := range forecasts {
+
+		data, err := json.Marshal(forecast.FullInfo)
+		if err != nil {
+			panic(err)
+		}
+
+		f := models.Forecast{
+			Temperature: forecast.Temperature,
+			Date:        time.Unix(int64(forecast.Date), 0),
+			FullInfo:    data,
+			CityID:      city.ID,
+		}
+
+		db.InsertIntoForecast(dbConn, f)
+	}
 }
 
 func initializeLogger() {
