@@ -83,3 +83,26 @@ func NewOpenWeatherAPIConnectionCfg() OpenWeatherAPIConnectionCfg {
 
 	return cfg
 }
+
+type ServerCfg struct {
+	Port string
+}
+
+func NewServerCfg() ServerCfg {
+	cfg := ServerCfg{}
+
+	cfg.Port = os.Getenv("SERVER_PORT")
+
+	someIsEmpty := false
+
+	if cfg.Port == "" {
+		log.Println("SERVER_PORT env variable is empty")
+		someIsEmpty = true
+	}
+
+	if someIsEmpty {
+		log.Fatalln("some desktop environments is empty")
+	}
+
+	return cfg
+}

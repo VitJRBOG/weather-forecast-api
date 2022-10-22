@@ -10,6 +10,7 @@ import (
 	"weather-forecast-api/internal/data/openweather"
 	"weather-forecast-api/internal/db"
 	"weather-forecast-api/internal/models"
+	"weather-forecast-api/internal/server"
 )
 
 func Execute() {
@@ -25,9 +26,13 @@ func Execute() {
 
 	dbConn := db.NewConnection(dsn)
 
-	openWeatherAPIConnectionCfg := config.NewOpenWeatherAPIConnectionCfg()
+	// openWeatherAPIConnectionCfg := config.NewOpenWeatherAPIConnectionCfg()
 
-	TestFetchingData(dbConn, openWeatherAPIConnectionCfg)
+	serverCfg := config.NewServerCfg()
+
+	server.Up(dbConn, serverCfg)
+
+	// TestFetchingData(dbConn, openWeatherAPIConnectionCfg)
 
 	// ...
 }
