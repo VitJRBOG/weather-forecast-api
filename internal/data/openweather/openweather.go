@@ -10,7 +10,7 @@ import (
 )
 
 type Forecast struct {
-	Date        int
+	Date        int64
 	Temperature float64
 	FullInfo    []fullForecastData
 }
@@ -43,7 +43,7 @@ type apiResponse struct {
 }
 
 type fullForecastData struct {
-	Date       int              `json:"dt"`
+	Date       int64            `json:"dt"`
 	Main       mainForecastData `json:"main"`
 	Weather    []weatherData    `json:"weather"`
 	Clouds     cloudsData       `json:"clouds"`
@@ -107,24 +107,29 @@ func parseRawData(data []byte) apiResponse {
 }
 
 func selectNecessaryInfo(weatherData []fullForecastData) []Forecast {
-	forecast := []Forecast{}
+	forecasts := []Forecast{}
 
 	beginDate := calculateBeginDate()
+	endDate := beginDate + (86400 * 5)
 
-	for i := 1; i <= 5; i++ {
-		endDate := beginDate + 86400
+	for _, item := range weatherData {
+		if beginDate > item.Date || endDate <= item.Date {
+			continue
+		}
 
-		wi := selectByDayForecast(beginDate, endDate, weatherData)
+		forecast := Forecast{
+			item.Date,
+			item.Main.Temperature,
+			weatherData,
+		}
 
-		forecast = append(forecast, wi)
-
-		beginDate = endDate
+		forecasts = append(forecasts, forecast)
 	}
 
-	return forecast
+	return forecasts
 }
 
-func calculateBeginDate() int {
+func calculateBeginDate() int64 {
 	begin, err := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
 	if err != nil {
 		log.Println(err)
@@ -133,36 +138,5 @@ func calculateBeginDate() int {
 
 	beginDate := begin.Unix()
 
-	return int(beginDate)
-}
-
-func selectByDayForecast(beginDate, endDate int, forecastData []fullForecastData) Forecast {
-	fullForecastDataByDay := []fullForecastData{}
-
-	byHoursTemperature := []float64{}
-
-	for _, item := range forecastData {
-		if beginDate > item.Date || endDate <= item.Date {
-			continue
-		}
-
-		byHoursTemperature = append(byHoursTemperature, item.Main.Temperature)
-		fullForecastDataByDay = append(fullForecastDataByDay, item)
-	}
-
-	return Forecast{
-		Date:        beginDate,
-		Temperature: calculateAverageDayTemperature(byHoursTemperature),
-		FullInfo:    fullForecastDataByDay,
-	}
-}
-
-func calculateAverageDayTemperature(byHoursTemperature []float64) float64 {
-	averageTemperature := 0.0
-
-	for _, temperature := range byHoursTemperature {
-		averageTemperature += temperature
-	}
-
-	return averageTemperature / float64(len(byHoursTemperature))
+	return beginDate
 }

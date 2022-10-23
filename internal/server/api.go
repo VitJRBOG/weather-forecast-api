@@ -2,10 +2,11 @@ package server
 
 import (
 	"database/sql"
+	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 	"weather-forecast-api/internal/db"
 	"weather-forecast-api/internal/models"
 )
@@ -19,63 +20,106 @@ func getCities(dbConn *sql.DB) ([]models.City, error) {
 	return cities, nil
 }
 
-func getForecasts(dbConn *sql.DB, params url.Values) ([]models.Forecast, error) {
+type cityForecasts struct {
+	Country       string  `json:"country"`
+	CityName      string  `json:"city_name"`
+	AvTemperature float64 `json:"av_temperature"`
+	ForecastDates []int64 `json:"forecast_dates"`
+}
+
+func newCityForecasts(cities []models.City, forecasts []models.Forecast) cityForecasts {
+	avTemperature := 0.0
+	dates := []int64{}
+
+	for _, forecast := range forecasts {
+		avTemperature += forecast.Temperature
+		dates = append(dates, forecast.Date)
+	}
+
+	avTemperature /= float64(len(forecasts))
+
+	return cityForecasts{
+		Country:       cities[0].Country,
+		CityName:      cities[0].Name,
+		AvTemperature: avTemperature,
+		ForecastDates: dates,
+	}
+}
+
+func getForecasts(dbConn *sql.DB, params url.Values) (cityForecasts, error) {
 	if !params.Has("city_id") {
-		return nil, Error{http.StatusBadRequest, "'city_id' param is empty"}
+		return cityForecasts{}, Error{http.StatusBadRequest, "'city_id' param is empty"}
 	}
 
 	cityID, err := strconv.Atoi(params.Get("city_id"))
 	if err != nil {
-		return nil, Error{http.StatusBadRequest, "'city_id' must be integer"}
+		return cityForecasts{}, Error{http.StatusBadRequest, "'city_id' must be integer"}
 	}
 
 	cities, err := db.SelectByIDFromCity(dbConn, cityID)
 	if err != nil {
-		return nil, Error{http.StatusServiceUnavailable, "couldn't get city info"}
+		return cityForecasts{}, Error{http.StatusServiceUnavailable, "couldn't get city info"}
 	}
 
 	if len(cities) == 0 {
-		return nil, Error{http.StatusNotFound, "no cities found"}
+		return cityForecasts{}, Error{http.StatusNotFound, "no cities found"}
 	}
 
 	forecasts, err := db.SelectByCityFromForecast(dbConn, cityID)
 	if err != nil {
-		return nil, Error{http.StatusServiceUnavailable, "couldn't get forecasts"}
+		return cityForecasts{}, Error{http.StatusServiceUnavailable, "couldn't get forecasts"}
 	}
 
-	// TODO: описать вывод данных на основе задания
-	// (инфу о городе + прогнозы погоды, отсортированные по дате)
-
-	return forecasts, nil
+	return newCityForecasts(cities, forecasts), nil
 }
 
-func getForecast(dbConn *sql.DB, params url.Values) (models.Forecast, error) {
+type detailForecast struct {
+	Temperature float64                  `json:"temperature"`
+	FullInfo    []map[string]interface{} `json:"full_info"`
+}
+
+func newDetailForecast(temperature float64, fullInfo []byte) (detailForecast, error) {
+	f := []map[string]interface{}{}
+
+	err := json.Unmarshal(fullInfo, &f)
+	if err != nil {
+		log.Println(err)
+		return detailForecast{}, Error{http.StatusServiceUnavailable, "service unavailable"}
+	}
+
+	return detailForecast{
+		Temperature: temperature,
+		FullInfo:    f,
+	}, nil
+}
+
+func getForecast(dbConn *sql.DB, params url.Values) (detailForecast, error) {
 	if !params.Has("city_id") {
-		return models.Forecast{}, Error{http.StatusBadRequest, "'city_id' param is empty"}
+		return detailForecast{}, Error{http.StatusBadRequest, "'city_id' param is empty"}
 	}
 
 	if !params.Has("date") {
-		return models.Forecast{}, Error{http.StatusBadRequest, "'date' param is empty"}
+		return detailForecast{}, Error{http.StatusBadRequest, "'date' param is empty"}
 	}
 
 	cityID, err := strconv.Atoi(params.Get("city_id"))
 	if err != nil {
-		return models.Forecast{}, Error{http.StatusBadRequest, "'city_id' must be integer"}
+		return detailForecast{}, Error{http.StatusBadRequest, "'city_id' must be integer"}
 	}
 
-	date, err := time.Parse("2006-01-02", params.Get("date"))
+	date, err := strconv.ParseInt(params.Get("date"), 10, 64)
 	if err != nil {
-		return models.Forecast{}, Error{http.StatusBadRequest, "'date' has the invalid format"}
+		return detailForecast{}, Error{http.StatusBadRequest, "'date' must be integer"}
 	}
 
 	forecasts, err := db.SelectByCityAndDateFromForecast(dbConn, cityID, date)
 	if err != nil {
-		return models.Forecast{}, Error{http.StatusServiceUnavailable, "couldn't get forecast"}
+		return detailForecast{}, Error{http.StatusServiceUnavailable, "couldn't get forecast"}
 	}
 
 	if len(forecasts) == 0 {
-		return models.Forecast{}, Error{http.StatusNotFound, "no forecasts found"}
+		return detailForecast{}, Error{http.StatusNotFound, "no forecasts found"}
 	}
 
-	return forecasts[0], nil
+	return newDetailForecast(forecasts[0].Temperature, forecasts[0].FullInfo)
 }

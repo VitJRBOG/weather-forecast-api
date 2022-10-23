@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS weather;
+DROP TABLE IF EXISTS forecast;
 
 DROP TABLE IF EXISTS cities;
 
@@ -14,7 +14,7 @@ CREATE TABLE cities (
 CREATE TABLE forecast (
     id SERIAL NOT NULL,
     temp real,
-    f_date DATE,
+    f_date INTEGER,
     full_info JSONB,
     city_id INTEGER,
     PRIMARY KEY(id),

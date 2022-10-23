@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"log"
-	"time"
 	"weather-forecast-api/internal/models"
 
 	_ "github.com/lib/pq" // Postgres driver
@@ -95,7 +94,7 @@ func SelectByCityFromForecast(dbConn *sql.DB, cityID int) ([]models.Forecast, er
 	return forecasts, nil
 }
 
-func SelectByCityAndDateFromForecast(dbConn *sql.DB, cityID int, date time.Time) ([]models.Forecast, error) {
+func SelectByCityAndDateFromForecast(dbConn *sql.DB, cityID int, date int64) ([]models.Forecast, error) {
 	query := "SELECT * FROM forecast WHERE city_id = $1 AND f_date = $2"
 
 	rows, err := dbConn.Query(query, cityID, date)
