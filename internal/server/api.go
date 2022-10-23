@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
+	"time"
 	"weather-forecast-api/internal/db"
 	"weather-forecast-api/internal/models"
 )
@@ -16,6 +18,10 @@ func getCities(dbConn *sql.DB) ([]models.City, error) {
 	if err != nil {
 		return nil, Error{http.StatusServiceUnavailable, "couldn't get cities list"}
 	}
+
+	sort.SliceStable(cities, func(i, j int) bool {
+		return cities[i].Name < cities[j].Name
+	})
 
 	return cities, nil
 }
@@ -30,11 +36,18 @@ type cityForecasts struct {
 func newCityForecasts(cities []models.City, forecasts []models.Forecast) cityForecasts {
 	avTemperature := 0.0
 	dates := []int64{}
+	timeNow := time.Now().Unix()
 
 	for _, forecast := range forecasts {
 		avTemperature += forecast.Temperature
-		dates = append(dates, forecast.Date)
+		if forecast.Date > timeNow {
+			dates = append(dates, forecast.Date)
+		}
 	}
+
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i] < dates[j]
+	})
 
 	avTemperature /= float64(len(forecasts))
 
