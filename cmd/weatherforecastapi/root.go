@@ -45,8 +45,11 @@ func fetchingData(dbConn *sql.DB, openWeatherAPIID string) {
 	}
 
 	for _, city := range cities {
-		forecasts := openweather.FetchForecast(openWeatherAPIID,
+		forecasts, err := openweather.FetchForecast(openWeatherAPIID,
 			city.Latitude, city.Longitude)
+		if err != nil {
+			log.Fatalln("forecasts updating has been interrupted")
+		}
 
 		saveDataToDB(dbConn, city, forecasts)
 	}

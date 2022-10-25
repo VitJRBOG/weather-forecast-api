@@ -2,6 +2,7 @@ package openweather
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,30 +16,34 @@ type Forecast struct {
 	FullInfo    []fullForecastData
 }
 
-func FetchForecast(apiID string, latitude, longitude float64) []Forecast {
+func FetchForecast(apiID string, latitude, longitude float64) ([]Forecast, error) {
 	u := fmt.Sprintf("http://api.openweathermap.org/data/2.5/forecast?units=metric&lat=%f&lon=%f&appid=%s",
 		latitude, longitude, apiID)
 
 	response, err := http.Get(u)
 	if err != nil {
 		log.Println(err)
-		return nil
+		return nil, err
 	}
 
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		log.Println(err)
-		return nil
+		return nil, err
 	}
 
-	forecast := parseAPIResponse(body)
+	forecast, err := parseAPIResponse(body)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
 
-	return forecast
+	return forecast, nil
 }
 
 type apiResponse struct {
-	Code    string             `json:"cod"`
-	Message any                `json:"message"`
+	Code    interface{}        `json:"cod"`
+	Message interface{}        `json:"message"`
 	List    []fullForecastData `json:"list"`
 }
 
@@ -87,11 +92,21 @@ type sysData struct {
 	Pod string `json:"pod"`
 }
 
-func parseAPIResponse(data []byte) []Forecast {
+func parseAPIResponse(data []byte) ([]Forecast, error) {
 	apiResp := parseRawData(data)
+
+	if statCode, ok := apiResp.Code.(float64); ok {
+		if statCode != 200 {
+			if msg, ok := apiResp.Message.(string); ok {
+				return nil, errors.New(msg)
+			}
+			return nil, fmt.Errorf("%v", apiResp.Message)
+		}
+	}
+
 	forecast := selectNecessaryInfo(apiResp.List)
 
-	return forecast
+	return forecast, nil
 }
 
 func parseRawData(data []byte) apiResponse {
