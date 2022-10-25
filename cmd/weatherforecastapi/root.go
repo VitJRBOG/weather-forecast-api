@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"weather-forecast-api/internal/config"
 	"weather-forecast-api/internal/data/openweather"
 	"weather-forecast-api/internal/db"
@@ -35,31 +36,41 @@ func Execute() {
 }
 
 func updateForecastsInfoInDB(dbConn *sql.DB, openWeatherAPIConnectionCfg config.OpenWeatherAPIConnectionCfg) {
-	fetchingData(dbConn, openWeatherAPIConnectionCfg.APIID)
+	collectingData(dbConn, openWeatherAPIConnectionCfg.APIID)
 }
 
-func fetchingData(dbConn *sql.DB, openWeatherAPIID string) {
+func collectingData(dbConn *sql.DB, openWeatherAPIID string) {
 	cities, err := db.SelectAllFromCities(dbConn)
 	if err != nil {
 		log.Fatalln("forecasts updating has been interrupted")
 	}
 
+	wg := &sync.WaitGroup{}
 	for _, city := range cities {
-		forecasts, err := openweather.FetchForecast(openWeatherAPIID,
-			city.Latitude, city.Longitude)
-		if err != nil {
-			log.Fatalln("forecasts updating has been interrupted")
-		}
-
-		saveDataToDB(dbConn, city, forecasts)
+		wg.Add(1)
+		go fetchAndSave(wg, dbConn, openWeatherAPIID, city)
 	}
+
+	wg.Wait()
+}
+
+func fetchAndSave(wg *sync.WaitGroup, dbConn *sql.DB, openWeatherAPIID string, city models.City) {
+	forecasts, err := openweather.FetchForecast(openWeatherAPIID,
+		city.Latitude, city.Longitude)
+	if err != nil {
+		log.Fatalln("unable fetch data from OpenWeather")
+	}
+
+	saveDataToDB(dbConn, city, forecasts)
+
+	wg.Done()
 }
 
 func saveDataToDB(dbConn *sql.DB, city models.City, forecasts []openweather.Forecast) {
 	for _, forecast := range forecasts {
 		data, err := json.Marshal(forecast.FullInfo)
 		if err != nil {
-			log.Fatalln("forecasts updating has been interrupted")
+			log.Fatalln(err)
 		}
 
 		f := models.Forecast{
@@ -71,7 +82,7 @@ func saveDataToDB(dbConn *sql.DB, city models.City, forecasts []openweather.Fore
 
 		fs, err := db.SelectByCityAndDateFromForecast(dbConn, f.CityID, f.Date)
 		if err != nil {
-			log.Fatalln("forecasts updating has been interrupted")
+			log.Fatalln("unable save data to database")
 		}
 
 		if len(fs) == 0 {
